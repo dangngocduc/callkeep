@@ -235,7 +235,7 @@ static CXProvider* sharedProvider;
     NSString *number = dic[@"number"];
     NSString *uuid = payload.dictionaryPayload[@"uuid"];
     NSString *callerName = payload.dictionaryPayload[@"callerName"];
-    BOOL hasVideo = [payload.dictionaryPayload[@"video"] boolValue];
+    BOOL hasVideo = [payload.dictionaryPayload[@"video"] intValue] == 1;
     [CallKeep reportNewIncomingCall:[self createUUID]
                              handle:number
                          handleType:@"number"
