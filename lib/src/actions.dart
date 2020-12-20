@@ -5,10 +5,12 @@ class CallKeepDidReceiveStartCallAction extends EventType {
   CallKeepDidReceiveStartCallAction.fromMap(Map<dynamic, dynamic> arguments)
       : callUUID = arguments['callUUID'] as String,
         handle = arguments['handle'] as String,
-        name = arguments['name'] as String;
+        name = arguments['name'] as String,
+        payload = arguments['payload'] as Map<dynamic, dynamic>;
   String callUUID;
   String handle;
   String name;
+  Map<dynamic, dynamic> payload;
 }
 
 class CallKeepPerformAnswerCallAction extends EventType {
