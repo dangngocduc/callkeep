@@ -5,12 +5,10 @@ class CallKeepDidReceiveStartCallAction extends EventType {
   CallKeepDidReceiveStartCallAction.fromMap(Map<dynamic, dynamic> arguments)
       : callUUID = arguments['callUUID'] as String,
         handle = arguments['handle'] as String,
-        name = arguments['name'] as String,
-        payload = arguments['payload'] as Map<dynamic, dynamic>;
+        name = arguments['name'] as String;
   String callUUID;
   String handle;
   String name;
-  Map<dynamic, dynamic> payload;
 }
 
 class CallKeepPerformAnswerCallAction extends EventType {
@@ -42,12 +40,14 @@ class CallKeepDidDisplayIncomingCall extends EventType {
         handle = arguments['handle'] as String,
         localizedCallerName = arguments['localizedCallerName'] as String,
         hasVideo = arguments['hasVideo'] as bool,
-        fromPushKit = arguments['fromPushKit'] as bool;
+        fromPushKit = arguments['fromPushKit'] as bool,
+        payload = arguments['payload'] as Map<dynamic, dynamic>;
   String callUUID;
   String handle;
   String localizedCallerName;
   bool hasVideo;
   bool fromPushKit;
+  Map<dynamic, dynamic> payload;
 }
 
 class CallKeepDidPerformSetMutedCallAction extends EventType {
