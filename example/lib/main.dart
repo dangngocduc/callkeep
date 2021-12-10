@@ -11,19 +11,37 @@ import 'package:uuid/uuid.dart';
 final FlutterCallkeep _callKeep = FlutterCallkeep();
 bool _callKeepInited = false;
 
+/*
+{
+    "uuid": "xxxxx-xxxxx-xxxxx-xxxxx",
+    "caller_id": "+8618612345678",
+    "caller_name": "hello",
+    "caller_id_type": "number", 
+    "has_video": false,
+
+    "extra": {
+        "foo": "bar",
+        "key": "value",
+    }
+}
+*/
+
 Future<dynamic> myBackgroundMessageHandler(Map<String, dynamic> message) {
   print('backgroundMessage: message => ${message.toString()}');
+  var payload = message['data'];
+  var callerId = payload['caller_id'] as String;
+  var callerName = payload['caller_name'] as String;
+  var uuid = payload['uuid'] as String;
+  var hasVideo = payload['has_video'] == "true";
 
-  var number = message['data']['body'] as String;
-  final callUUID = Uuid().v4();
+  final callUUID = uuid ?? Uuid().v4();
   _callKeep.on(CallKeepPerformAnswerCallAction(),
       (CallKeepPerformAnswerCallAction event) {
     print(
         'backgroundMessage: CallKeepPerformAnswerCallAction ${event.callUUID}');
-    _callKeep.startCall(event.callUUID, number, number);
-
     Timer(const Duration(seconds: 1), () {
-      print('[setCurrentCallActive] $callUUID, number: $number');
+      print(
+          '[setCurrentCallActive] $callUUID, callerId: $callerId, callerName: $callerName');
       _callKeep.setCurrentCallActive(callUUID);
     });
     //_callKeep.endCall(event.callUUID);
@@ -34,23 +52,34 @@ Future<dynamic> myBackgroundMessageHandler(Map<String, dynamic> message) {
     print('backgroundMessage: CallKeepPerformEndCallAction ${event.callUUID}');
   });
   if (!_callKeepInited) {
-    _callKeep.setup(<String, dynamic>{
-      'ios': {
-        'appName': 'CallKeepDemo',
-      },
-      'android': {
-        'alertTitle': 'Permissions required',
-        'alertDescription':
-            'This application needs to access your phone accounts',
-        'cancelButton': 'Cancel',
-        'okButton': 'ok',
-      },
-    });
+    _callKeep.setup(
+        null,
+        <String, dynamic>{
+          'ios': {
+            'appName': 'CallKeepDemo',
+          },
+          'android': {
+            'alertTitle': 'Permissions required',
+            'alertDescription':
+                'This application needs to access your phone accounts',
+            'cancelButton': 'Cancel',
+            'okButton': 'ok',
+            'foregroundService': {
+              'channelId': 'com.company.my',
+              'channelName': 'Foreground service for my app',
+              'notificationTitle': 'My app is running on background',
+              'notificationIcon':
+                  'Path to the resource icon of the notification',
+            },
+          },
+        },
+        backgroundMode: true);
     _callKeepInited = true;
   }
 
-  print('backgroundMessage: displayIncomingCall ($number)');
-  _callKeep.displayIncomingCall(callUUID, number);
+  print('backgroundMessage: displayIncomingCall ($callerId)');
+  _callKeep.displayIncomingCall(callUUID, callerId,
+      localizedCallerName: callerName, hasVideo: hasVideo);
   _callKeep.backToForeground();
   /*
 
@@ -134,8 +163,6 @@ class _MyAppState extends State<HomePage> {
     final String callUUID = event.callUUID;
     final String number = calls[callUUID].number;
     print('[answerCall] $callUUID, number: $number');
-
-    _callKeep.startCall(event.callUUID, number, number);
     Timer(const Duration(seconds: 1), () {
       print('[setCurrentCallActive] $callUUID, number: $number');
       _callKeep.setCurrentCallActive(callUUID);
@@ -242,6 +269,12 @@ class _MyAppState extends State<HomePage> {
             'This application needs to access your phone accounts',
         'cancelButton': 'Cancel',
         'okButton': 'ok',
+        'foregroundService': {
+          'channelId': 'com.company.my',
+          'channelName': 'Foreground service for my app',
+          'notificationTitle': 'My app is running on background',
+          'notificationIcon': 'Path to the resource icon of the notification',
+        },
       });
     }
 
@@ -277,7 +310,7 @@ class _MyAppState extends State<HomePage> {
     _callKeep.on(CallKeepPerformEndCallAction(), endCall);
     _callKeep.on(CallKeepPushKitToken(), onPushKitToken);
 
-    _callKeep.setup(<String, dynamic>{
+    _callKeep.setup(context, <String, dynamic>{
       'ios': {
         'appName': 'CallKeepDemo',
       },
@@ -287,6 +320,12 @@ class _MyAppState extends State<HomePage> {
             'This application needs to access your phone accounts',
         'cancelButton': 'Cancel',
         'okButton': 'ok',
+        'foregroundService': {
+          'channelId': 'com.company.my',
+          'channelName': 'Foreground service for my app',
+          'notificationTitle': 'My app is running on background',
+          'notificationIcon': 'Path to the resource icon of the notification',
+        },
       },
     });
 
@@ -303,9 +342,17 @@ class _MyAppState extends State<HomePage> {
           print('onMessage: $message');
           if (message.containsKey('data')) {
             // Handle data message
-            final dynamic data = message['data'];
-            var number = data['body'] as String;
-            await displayIncomingCall(number);
+            var payload = message['data'];
+            var callerId = payload['caller_id'] as String;
+            var callerName = payload['caller_name'] as String;
+            var uuid = payload['uuid'] as String;
+            var hasVideo = payload['has_video'] == "true";
+            final callUUID = uuid ?? Uuid().v4();
+            setState(() {
+              calls[callUUID] = Call(callerId);
+            });
+            _callKeep.displayIncomingCall(callUUID, callerId,
+                localizedCallerName: callerName, hasVideo: hasVideo);
           }
         },
         onBackgroundMessage: myBackgroundMessageHandler,

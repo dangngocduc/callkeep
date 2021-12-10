@@ -79,7 +79,6 @@ public class CallKeepModule {
     private static final String TAG = "FLT:CallKeepModule";
     private static TelecomManager telecomManager;
     private static TelephonyManager telephonyManager;
-    private static MethodChannel.Result hasPhoneAccountPromise;
     private Context _context;
     public static PhoneAccountHandle handle;
     private boolean isReceiverRegistered = false;
@@ -98,11 +97,13 @@ public class CallKeepModule {
     }
 
     public void dispose(){
+        if (voiceBroadcastReceiver == null || this._context == null) return;
         LocalBroadcastManager.getInstance(this._context).unregisterReceiver(voiceBroadcastReceiver);
         VoiceConnectionService.setPhoneAccountHandle(null);
+        isReceiverRegistered = false;
     }
 
-    public boolean HandleMethodCall(@NonNull MethodCall call, @NonNull Result result) {
+    public boolean handleMethodCall(@NonNull MethodCall call, @NonNull Result result) {
         switch(call.method) {
             case "setup": {
                 setup(new ConstraintsMap((Map<String, Object>)call.argument("options")));
@@ -207,6 +208,11 @@ public class CallKeepModule {
                 backToForeground(result);
             }
             break;
+            case "foregroundService": {
+                VoiceConnectionService.setSettings(new ConstraintsMap((Map<String, Object>)call.argument("settings")));
+                result.success(null);
+            }
+            break;
             default:
                 return false;
         }
@@ -215,6 +221,9 @@ public class CallKeepModule {
     }
     
     public void setup(ConstraintsMap options) {
+        if (isReceiverRegistered) {
+            return;
+        }
         VoiceConnectionService.setAvailable(false);
         this._settings = options;
         if (isConnectionServiceAvailable()) {
@@ -222,8 +231,9 @@ public class CallKeepModule {
             this.registerEvents();
             VoiceConnectionService.setAvailable(true);
         }
-    }
 
+        VoiceConnectionService.setSettings(options);
+    }
     
     public void registerPhoneAccount() {
         if (!isConnectionServiceAvailable()) {
@@ -238,7 +248,6 @@ public class CallKeepModule {
         if (!isConnectionServiceAvailable()) {
             return;
         }
-
         voiceBroadcastReceiver = new VoiceBroadcastReceiver();
         registerReceiver();
         VoiceConnectionService.setPhoneAccountHandle(handle);
@@ -544,7 +553,7 @@ public class CallKeepModule {
     @SuppressLint("WrongConstant")
     public void backToForeground(@NonNull MethodChannel.Result result) {
         Context context = getAppContext();
-        String packageName = context.getApplicationContext().getPackageName();
+        String packageName = context.getPackageName();
         Intent focusIntent = context.getPackageManager().getLaunchIntentForPackage(packageName).cloneFilter();
         Activity activity = this._currentActivity;
         boolean isOpened = activity != null;
@@ -557,10 +566,13 @@ public class CallKeepModule {
                     WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED +
                     WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD +
                     WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
-
-            this._currentActivity.startActivity(focusIntent);
+            if (activity != null) {
+                activity.startActivity(focusIntent);
+            } else {
+                context.startActivity(focusIntent);
+            }
         }
-        result.success(null);
+        result.success(isOpened);
     }
 
     private void initializeTelecomManager() {

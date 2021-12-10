@@ -88,7 +88,7 @@ static CXProvider* sharedProvider;
         result(nil);
     }
     else if ([@ "startCall" isEqualToString:method]) {
-        [self startCall:argsMap[@"uuid"] handle:argsMap[@"handle"] contactIdentifier:argsMap[@"callerName"] handleType:argsMap[@"handleType"] video:[argsMap[@"hasVideo"] boolValue]];
+        [self startCall:argsMap[@"uuid"] handle:argsMap[@"number"] contactIdentifier:argsMap[@"callerName"] handleType:argsMap[@"handleType"] video:[argsMap[@"hasVideo"] boolValue]];
         result(nil);
     }
     else if ([@"isCallActive" isEqualToString:method]) {
@@ -220,30 +220,57 @@ static CXProvider* sharedProvider;
     return [uuidStr lowercaseString];
 }
 
-- (void)pushRegistry:(PKPushRegistry *)registry didReceiveIncomingPushWithPayload:(PKPushPayload *)payload forType:(NSString *)type {
+
+- (void)pushRegistry:(PKPushRegistry *)registry didReceiveIncomingPushWithPayload:(PKPushPayload *)payload forType:(PKPushType)type withCompletionHandler:(nonnull void (^)(void))completion {
     // Process the received push
     NSLog(@"didReceiveIncomingPushWithPayload payload = %@", payload.type);
     /* payload example.
-     {
-         "callkeep": {
-             "title": "Incoming Call",
-             "number": "+86186123456789"
-         }
-     }
+    {
+        "uuid": "xxxxx-xxxxx-xxxxx-xxxxx",
+        "caller_id": "+8618612345678",
+        "caller_name": "hello",
+        "caller_id_type": "number",
+        "has_video": false,
+    }
     */
-    NSDictionary *dic = payload.dictionaryPayload[@"callkeep"];
-    NSString *number = dic[@"number"];
-    NSString *uuid = payload.dictionaryPayload[@"uuid"];
-    NSString *callerName = payload.dictionaryPayload[@"callerName"];
-    BOOL hasVideo = [payload.dictionaryPayload[@"video"] intValue] == 1;
-    [CallKeep reportNewIncomingCall:[self createUUID]
-                             handle:number
-                         handleType:@"number"
+
+    NSDictionary *dic = payload.dictionaryPayload;
+
+    if (dic[@"aps"] != nil) {
+        NSLog(@"Do not use the 'alert' format for push type %@.", payload.type);
+        if(completion != nil) {
+            completion();
+        }
+        return;
+    }
+
+    NSString *uuid = dic[@"uuid"];
+    NSString *callerId = dic[@"caller_id"];
+    NSString *callerName = dic[@"caller_name"];
+    BOOL hasVideo = [dic[@"has_video"] boolValue];
+    NSString *callerIdType = dic[@"caller_id_type"];
+
+
+    if( uuid == nil) {
+        uuid = [self createUUID];
+    }
+
+    //NSDictionary *extra = payload.dictionaryPayload[@"extra"];
+
+    [CallKeep reportNewIncomingCall:uuid
+                             handle:callerId
+                         handleType:callerIdType
                            hasVideo:hasVideo
                 localizedCallerName:callerName
                         fromPushKit:YES
-                            payload:payload.dictionaryPayload
-              withCompletionHandler:^(){}];
+                            payload:dic
+              withCompletionHandler:completion];
+}
+
+- (void)pushRegistry:(PKPushRegistry *)registry didReceiveIncomingPushWithPayload:(PKPushPayload *)payload forType:(NSString *)type {
+    [self pushRegistry:registry didReceiveIncomingPushWithPayload:payload forType:type withCompletionHandler:^(){
+        NSLog(@"[CallKeep] received");
+    }];
 }
 
 
@@ -569,7 +596,11 @@ contactIdentifier:(NSString * _Nullable)contactIdentifier
 #ifdef DEBUG
     NSLog(@"[CallKeep][getProviderConfiguration]");
 #endif
-    CXProviderConfiguration *providerConfiguration = [[CXProviderConfiguration alloc] initWithLocalizedName:settings[@"appName"]];
+    NSString *appName = @"Unknown App";
+    if (settings != nil) {
+        appName = settings[@"appName"];
+    }
+    CXProviderConfiguration *providerConfiguration = [[CXProviderConfiguration alloc] initWithLocalizedName:appName];
     providerConfiguration.supportsVideo = YES;
     providerConfiguration.maximumCallGroups = 3;
     providerConfiguration.maximumCallsPerCallGroup = 1;
